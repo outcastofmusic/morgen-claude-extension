@@ -1,0 +1,85 @@
+{
+  "dxt_version": "0.1",
+  "name": "morgen-calendar",
+  "display_name": "Morgen Calendar",
+  "description": "Connect Claude to your Morgen calendars for natural language calendar management across all providers",
+  "version": "1.0.0",
+  "author": {
+    "name": "Extension Developer",
+    "email": "developer@example.com"
+  },
+  "license": "MIT",
+  "keywords": ["calendar", "morgen", "scheduling", "productivity"],
+  "homepage": "https://github.com/outcastofmusic/morgen-claude-extension",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/outcastofmusic/morgen-claude-extension"
+  },
+  
+  "runtime": {
+    "type": "node",
+    "version": ">=18.0.0"
+  },
+  
+  "main": "dist/index.js",
+  
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "name": "morgen-calendar",
+      "description": "Access and manage your calendars through Morgen",
+      "command": "node",
+      "args": ["dist/index.js"]
+    },
+    "env": {
+      "MORGEN_API_KEY": "${MORGEN_API_KEY}"
+    }
+  },
+  
+  "configuration": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "MORGEN_API_KEY": {
+          "type": "string",
+          "title": "Morgen API Key",
+          "description": "Your Morgen API key from https://platform.morgen.so/developers-api",
+          "required": true,
+          "secret": true,
+          "minLength": 10,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "ui": {
+            "hint": "Get your API key from Morgen Developer Platform",
+            "placeholder": "Enter your Morgen API key"
+          }
+        }
+      }
+    }
+  },
+  
+  "permissions": {
+    "network": {
+      "allowed": true,
+      "domains": ["api.morgen.so"],
+      "description": "Required for accessing Morgen calendar data"
+    }
+  },
+  
+  "icon": "assets/icon-light.svg",
+  
+  "screenshots": [
+    "assets/screenshots/calendar-view.png",
+    "assets/screenshots/event-creation.png",
+    "assets/screenshots/search-results.png"
+  ],
+  
+  "categories": ["productivity", "calendar", "scheduling"],
+  
+  "min_claude_version": "1.0.0",
+  
+  "changelog": {
+    "1.0.0": "Initial release with calendar management features"
+  }
+}

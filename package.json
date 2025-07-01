@@ -1,0 +1,37 @@
+{
+  "name": "morgen-calendar",
+  "version": "1.0.0",
+  "description": "Claude Desktop Extension for Morgen Calendar integration",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "build": "node build.js",
+    "test": "node test/test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/outcastofmusic/morgen-claude-extension.git"
+  },
+  "keywords": [
+    "calendar",
+    "morgen",
+    "scheduling",
+    "productivity",
+    "mcp",
+    "claude"
+  ],
+  "author": "Extension Developer",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/outcastofmusic/morgen-claude-extension/issues"
+  },
+  "homepage": "https://github.com/outcastofmusic/morgen-claude-extension#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.2"
+  },
+  "devDependencies": {
+    "@anthropic-ai/dxt": "^0.2.0",
+    "esbuild": "^0.25.5"
+  }
+}
