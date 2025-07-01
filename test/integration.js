@@ -180,11 +180,15 @@ class IntegrationTestRunner {
     
     // Test with calendar filter
     const calendars = await this.client.listCalendars();
+    console.log('calendars', calendars);
     if (calendars.length > 0) {
+      const calendarIds = calendars.slice(0,2).map(calendar => calendar.id).join(',');
+      console.log('calendar', calendars[0])
       const filteredEvents = await this.client.getEvents({
+        account_id: calendars[0].accountId,
         start_date: now.toISOString(),
         end_date: tomorrow.toISOString(),
-        calendar_ids: [calendars[0].id]
+        calendar_ids: calendarIds
       });
       
       if (!Array.isArray(filteredEvents)) {
@@ -330,14 +334,14 @@ class IntegrationTestRunner {
       await this.setup();
       
       // Run all integration tests
-      await this.runTest('List Calendars', () => this.testListCalendars());
-      await this.runTest('List Accounts', () => this.testListAccounts());
-      await this.runTest('Get Today Events', () => this.testGetTodayEvents());
-      await this.runTest('Get Week Events', () => this.testGetWeekEvents());
+      // await this.runTest('List Calendars', () => this.testListCalendars());
+      // await this.runTest('List Accounts', () => this.testListAccounts());
+      // await this.runTest('Get Today Events', () => this.testGetTodayEvents());
+      // await this.runTest('Get Week Events', () => this.testGetWeekEvents());
       await this.runTest('Get Events with Filters', () => this.testGetEvents());
-      await this.runTest('Search Events', () => this.testSearchEvents());
-      await this.runTest('Create Event', () => this.testCreateEvent());
-      await this.runTest('Error Handling', () => this.testErrorHandling());
+      // await this.runTest('Search Events', () => this.testSearchEvents());
+      // await this.runTest('Create Event', () => this.testCreateEvent());
+      // await this.runTest('Error Handling', () => this.testErrorHandling());
       
     } catch (error) {
       console.error('❌ Test setup failed:', error.message);

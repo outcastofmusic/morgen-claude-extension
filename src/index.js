@@ -101,7 +101,7 @@ const toolSchemas = [
       properties: {
         calendar_ids: {
           type: 'string',
-          description: 'Calendar IDs to filter by. Use "all" for all calendars, or provide comma-separated calendar IDs like "cal-1,cal-2". Leave empty to get events from all calendars. Examples: "all", "cal-123", "cal-123,cal-456"'
+          description: 'Calendar IDs to filter by. IMPORTANT: Use one of these exact formats:\n- "all" (for all calendars)\n- "cal-123" (single calendar ID)\n- "cal-123,cal-456,cal-789" (comma-separated list of calendar IDs)\nDO NOT use base64 encoding or arrays. Examples:\n✓ "all"\n✓ "68022c98dccbf29775511ccf"\n✓ "68022c98dccbf29775511ccf,68022cb09e5d0d305b3ab5c4"\n✗ WyI2ODAyMmM5OGRjY2JmMjk3NzU1MTFjY2YiXQ== (base64)\n✗ ["cal-1","cal-2"] (array)'
         },
         start_date: {
           type: 'string',
@@ -113,7 +113,7 @@ const toolSchemas = [
         },
         account_id: {
           type: 'string',
-          description: 'Filter by specific account ID (optional). Use with specific calendar_ids, not with "all".'
+          description: 'Provide a specific account ID. Use with specific calendar_ids, not with "all".'
         }
       },
       required: []
@@ -121,27 +121,27 @@ const toolSchemas = [
   },
   {
     name: 'search_events',
-    description: 'Search events by title/description/location',
+    description: 'Search events by title/description/location across all calendars',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Search query'
+          description: 'Search query to match against event title, description, or location (e.g., "meeting", "standup", "lunch")'
         },
         start_date: {
           type: 'string',
-          description: 'Search start date (optional)'
+          description: 'Search start date in YYYY-MM-DD format (optional, defaults to 30 days ago)'
         },
         end_date: {
           type: 'string',
-          description: 'Search end date (optional)'
+          description: 'Search end date in YYYY-MM-DD format (optional, defaults to 30 days from now)'
         },
         max_results: {
           type: 'integer',
           minimum: 1,
           maximum: 100,
-          description: 'Maximum results (default: 20)'
+          description: 'Maximum number of results to return (default: 20)'
         }
       },
       required: ['query']
@@ -149,29 +149,29 @@ const toolSchemas = [
   },
   {
     name: 'create_event',
-    description: 'Create new calendar events',
+    description: 'Create new calendar events. First use list_calendars and list_accounts to get the required IDs.',
     inputSchema: {
       type: 'object',
       properties: {
         account_id: {
           type: 'string',
-          description: 'Account ID for the calendar'
+          description: 'Account ID for the calendar (get from list_accounts)'
         },
         calendar_id: {
           type: 'string',
-          description: 'Target calendar ID'
+          description: 'Target calendar ID (get from list_calendars)'
         },
         title: {
           type: 'string',
-          description: 'Event title'
+          description: 'Event title (e.g., "Team Meeting", "Lunch with John")'
         },
         start_time: {
           type: 'string',
-          description: 'Start time (ISO format)'
+          description: 'Start time in ISO format (e.g., "2025-07-02T15:30:00Z")'
         },
         end_time: {
           type: 'string',
-          description: 'End time (optional, defaults to +1 hour)'
+          description: 'End time in ISO format (optional, defaults to +1 hour from start_time)'
         },
         description: {
           type: 'string',
@@ -179,11 +179,11 @@ const toolSchemas = [
         },
         location: {
           type: 'string',
-          description: 'Event location (optional)'
+          description: 'Event location (optional, e.g., "Conference Room A", "Zoom")'
         },
         time_zone: {
           type: 'string',
-          description: 'Time zone (optional, defaults to UTC)'
+          description: 'Time zone (optional, defaults to UTC, e.g., "America/New_York")'
         }
       },
       required: ['account_id', 'calendar_id', 'title', 'start_time']

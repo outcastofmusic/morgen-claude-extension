@@ -196,7 +196,10 @@ async function runTests() {
     testSearchEvents,
     testEventFiltering,
     testToolSchemas,
-    testErrorHandling
+    testErrorHandling,
+    testCaching,
+    testGetEventsAllCalendars,
+    testGetEventsValidation
   ];
   
   console.log('🧪 Running Morgen Calendar Extension Tests\n');
@@ -287,8 +290,8 @@ async function testGetEvents() {
   
   // Test week events
   const weekEvents = await client.getWeekEvents();
-  if (!Array.isArray(weekEvents)) {
-    throw new Error('getWeekEvents should return an array');
+  if (typeof weekEvents !== 'object' || weekEvents === null) {
+    throw new Error('getWeekEvents should return an object organized by day');
   }
   
   // Test "all" calendar IDs
@@ -317,13 +320,12 @@ async function testCreateEvent() {
   const client = new MorgenAPIClient('test-api-key-123');
   
   const eventData = {
-    accountId: 'acc-1',
-    calendarId: 'cal-1',
+    calendar_id: 'cal-1',
     title: 'New Event',
-    start: new Date(Date.now() + 86400000).toISOString(),
-    end: new Date(Date.now() + 90000000).toISOString(),
+    start_date: new Date(Date.now() + 86400000).toISOString(),
+    end_date: new Date(Date.now() + 90000000).toISOString(),
     description: 'Test event creation',
-    timeZone: 'UTC'
+    timezone: 'UTC'
   };
   
   const created = await client.createEvent(eventData);
@@ -454,6 +456,185 @@ async function testErrorHandling() {
   
   // Restore mock fetch
   global.fetch = createMockFetch();
+}
+
+async function testCaching() {
+  const client = new MorgenAPIClient('test-api-key-123');
+  
+  // Test cache functionality by checking if data is cached
+  let fetchCallCount = 0;
+  const originalFetch = global.fetch;
+  
+  global.fetch = async (...args) => {
+    fetchCallCount++;
+    return originalFetch(...args);
+  };
+  
+  // First call should make network request
+  await client.listCalendars();
+  const firstCallCount = fetchCallCount;
+  
+  // Second call should use cache
+  await client.listCalendars();
+  const secondCallCount = fetchCallCount;
+  
+  // Should not have made additional network calls
+  if (secondCallCount !== firstCallCount) {
+    throw new Error(`Caching not working: expected ${firstCallCount} calls, got ${secondCallCount}`);
+  }
+  
+  // Test cache stats
+  const stats = client.getCacheStats();
+  if (!stats || typeof stats.size !== 'number') {
+    throw new Error('Cache stats not working');
+  }
+  
+  // Test cache invalidation after event creation
+  const eventData = {
+    calendar_id: 'cal-1',
+    title: 'Cache Test Event',
+    start_date: new Date(Date.now() + 86400000).toISOString(),
+    end_date: new Date(Date.now() + 90000000).toISOString()
+  };
+  
+  // Get events to populate cache
+  await client.getTodayEvents();
+  const statsBefore = client.getCacheStats();
+  
+  // Create event (should invalidate event caches)
+  await client.createEvent(eventData);
+  const statsAfter = client.getCacheStats();
+  
+  // Event caches should be cleared, but calendar/account caches should remain
+  if (statsAfter.size >= statsBefore.size) {
+    throw new Error('Cache invalidation not working properly');
+  }
+  
+  // Restore original fetch
+  global.fetch = originalFetch;
+}
+
+async function testGetEventsAllCalendars() {
+  const client = new MorgenAPIClient('test-api-key-123');
+  
+  // Test the exact failing scenario from Claude
+  const params = {
+    end_date: '2025-07-02T23:59:59.999Z',
+    start_date: '2025-07-02T00:00:00.000Z',
+    calendar_ids: 'all',
+    account_id: 'acc-1'
+  };
+  
+  try {
+    const events = await client.getEvents(params);
+    
+    // Should return an array
+    if (!Array.isArray(events)) {
+      throw new Error('getEvents should return an array');
+    }
+    
+    // Should filter out "Busy (via Morgen)" and "Untitled Event" events
+    const busyEvents = events.filter(event => event.title === 'Busy (via Morgen)');
+    if (busyEvents.length > 0) {
+      throw new Error('Should filter out "Busy (via Morgen)" events');
+    }
+    
+    const untitledEvents = events.filter(event => event.title === 'Untitled Event');
+    if (untitledEvents.length > 0) {
+      throw new Error('Should filter out "Untitled Event" events');
+    }
+    
+    // Test with specific calendar IDs as string
+    const specificParams = {
+      end_date: '2025-07-02T23:59:59.999Z',
+      start_date: '2025-07-02T00:00:00.000Z',
+      calendar_ids: 'cal-1,cal-2'
+    };
+    
+    const specificEvents = await client.getEvents(specificParams);
+    if (!Array.isArray(specificEvents)) {
+      throw new Error('getEvents with specific calendar_ids should return an array');
+    }
+    
+    // Test with calendar IDs as array
+    const arrayParams = {
+      end_date: '2025-07-02T23:59:59.999Z',
+      start_date: '2025-07-02T00:00:00.000Z',
+      calendar_ids: ['cal-1', 'cal-2']
+    };
+    
+    const arrayEvents = await client.getEvents(arrayParams);
+    if (!Array.isArray(arrayEvents)) {
+      throw new Error('getEvents with array calendar_ids should return an array');
+    }
+    
+  } catch (error) {
+    throw new Error(`Failed exact Claude scenario: ${error.message}`);
+  }
+}
+
+async function testGetEventsValidation() {
+  const client = new MorgenAPIClient('test-api-key-123');
+  
+  // Test the problematic base64-encoded input from Claude
+  const problematicParams = {
+    end_date: '2025-07-02T23:59:59.999Z',
+    start_date: '2025-07-02T00:00:00.000Z',
+    calendar_ids: ['cal-1', 'cal-2']
+  };
+  
+  try {
+    await client.getEvents(problematicParams);
+    throw new Error('Should have thrown error for base64 encoded calendar_ids');
+  } catch (error) {
+    if (!error.message.includes('calendar_ids must be a string')) {
+      throw new Error(`Expected calendar_ids must be a string error message, got: ${error.message}`);
+    }
+  }
+  
+  // Test JSON array string input (another common mistake)
+  const jsonArrayParams = {
+    end_date: '2025-07-02T23:59:59.999Z',
+    start_date: '2025-07-02T00:00:00.000Z',
+    calendar_ids: '["cal-1","cal-2"]'
+  };
+  
+  try {
+    await client.getEvents(jsonArrayParams);
+    throw new Error('Should have thrown error for JSON array string calendar_ids');
+  } catch (error) {
+    if (!error.message.includes('JSON array string')) {
+      throw new Error(`Expected JSON array error message, got: ${error.message}`);
+    }
+  }
+  
+  // Test empty calendar_ids
+  const emptyParams = {
+    end_date: '2025-07-02T23:59:59.999Z',
+    start_date: '2025-07-02T00:00:00.000Z',
+    calendar_ids: null
+  };
+  
+  try {
+    await client.getEvents(emptyParams);
+    throw new Error('Should have thrown error for empty calendar_ids');
+  } catch (error) {
+    if (!error.message.includes('start_date, end_date, account_id, and calendar_ids are required')) {
+      throw new Error(`Expected start_date, end_date, account_id, and calendar_ids are required error message, got: ${error.message}`);
+    }
+  }
+  
+  // Test that valid comma-separated input works
+  const validParams = {
+    end_date: '2025-07-02T23:59:59.999Z',
+    start_date: '2025-07-02T00:00:00.000Z',
+    calendar_ids: 'cal-1,cal-2'
+  };
+  
+  const events = await client.getEvents(validParams);
+  if (!Array.isArray(events)) {
+    throw new Error('Valid calendar_ids should return events array');
+  }
 }
 
 // Run tests if called directly

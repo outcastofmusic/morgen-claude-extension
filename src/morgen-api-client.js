@@ -1,3 +1,5 @@
+const SimpleCache = require('./cache.js');
+
 class MorgenAPIClient {
   constructor(apiKey) {
     this.apiKey = apiKey;
@@ -8,6 +10,12 @@ class MorgenAPIClient {
       'Content-Type': 'application/json',
       'User-Agent': 'MCP-Morgen-Extension/1.0'
     };
+    
+    // Initialize cache with custom settings
+    this.cache = new SimpleCache({
+      maxSize: 100,
+      defaultTTL: 120 // 2 minutes default
+    });
   }
 
   async request(endpoint, options = {}) {
@@ -48,13 +56,41 @@ class MorgenAPIClient {
 
   // Calendar methods
   async listCalendars() {
+    const cacheKey = 'calendars';
+    
+    // Check cache first
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await this.request('/calendars/list');
-    return response.data?.calendars || [];
+    const calendars = response.data?.calendars || [];
+    
+    // Cache for 1 hour (3600 seconds)
+    this.cache.set(cacheKey, calendars, 3600);
+    
+    return calendars;
   }
 
   async listAccounts() {
+    const cacheKey = 'accounts';
+    
+    // Check cache first
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await this.request('/integrations/accounts/list');
-    return response.data?.accounts || [];
+    const accounts = response.data?.accounts || [];
+    
+    // Cache for 1 hour (3600 seconds)
+    this.cache.set(cacheKey, accounts, 3600);
+    
+    return accounts;
   }
   
   // Event methods  
@@ -76,27 +112,30 @@ class MorgenAPIClient {
       params.calendarIds = calendars.map(cal => cal.id).join(',');
     }
     
-    // First try a simple call without parameters to test basic connectivity
-    if (Object.keys(params).length === 0) {
-      try {
-        const response = await this.request('/events/list');
-        const events = response.data?.events || [];
+    // // First try a simple call without parameters to test basic connectivity
+    // if (Object.keys(params).length === 0) {
+    //   try {
+    //     const response = await this.request('/events/list');
+    //     const events = response.data?.events || [];
         
-        // Filter out "Busy (via Morgen)" and "Untitled Event" events
-        const filtered = events.filter(event => 
-          event.title !== 'Busy (via Morgen)' && 
-          event.title !== 'Untitled Event'
-        );
+    //     // Filter out "Busy (via Morgen)" and "Untitled Event" events
+    //     const filtered = events.filter(event => 
+    //       event.title !== 'Busy (via Morgen)' && 
+    //       event.title !== 'Untitled Event'
+    //     );
         
-        return filtered;
-      } catch (error) {
-        throw error;
-      }
-    }
+    //     return filtered;
+    //   } catch (error) {
+    //     throw error;
+    //   }
+    // }
     
     const queryParams = new URLSearchParams();
     
     // Use the exact parameter names that the Morgen API expects
+    if (params.accountId) {
+      queryParams.append('accountId', params.accountId);
+    }
     if (params.calendarIds) {
       queryParams.append('calendarIds', params.calendarIds);
     }
@@ -106,51 +145,20 @@ class MorgenAPIClient {
     if (params.end) {
       queryParams.append('end', params.end);
     }
-    if (params.accountId) {
-      queryParams.append('accountId', params.accountId);
-    }
     
     const queryString = queryParams.toString();
     const endpoint = `/events/list?${queryString}`;
+    console.log('endpoint', endpoint);
+    const response = await this.request(endpoint);
+    const events = response.data?.events || [];
     
-    try {
-      const response = await this.request(endpoint);
-      const events = response.data?.events || [];
+    // Filter out "Busy (via Morgen)" and "Untitled Event" events
+    const filtered = events.filter(event => 
+      event.title !== 'Busy (via Morgen)' && 
+      event.title !== 'Untitled Event'
+    );
       
-      // Filter out "Busy (via Morgen)" and "Untitled Event" events
-      const filtered = events.filter(event => 
-        event.title !== 'Busy (via Morgen)' && 
-        event.title !== 'Untitled Event'
-      );
-      
-      return filtered;
-    } catch (error) {
-      // If we get a 400 error, it might be due to invalid parameters
-      // Let's try a fallback approach
-      if (error.status === 400 && params.calendarIds) {
-        try {
-          // Try with just calendarIds
-          const fallbackParams = new URLSearchParams();
-          fallbackParams.append('calendarIds', params.calendarIds);
-          const fallbackEndpoint = `/events/list?${fallbackParams.toString()}`;
-          
-          const fallbackResponse = await this.request(fallbackEndpoint);
-          const fallbackEvents = fallbackResponse.data?.events || [];
-          
-          // Filter out "Busy (via Morgen)" and "Untitled Event" events
-          const filtered = fallbackEvents.filter(event => 
-            event.title !== 'Busy (via Morgen)' && 
-            event.title !== 'Untitled Event'
-          );
-          
-          return filtered;
-        } catch (fallbackError) {
-          throw error; // Throw the original error
-        }
-      }
-      
-      throw error;
-    }
+    return filtered;
   }
 
   async createEvent(eventData) {
@@ -193,11 +201,40 @@ class MorgenAPIClient {
         body: JSON.stringify(morgenEventData)
       });
       
+      // Invalidate relevant caches after creating an event
+      this.invalidateEventCaches();
+      
       return response.data?.event || response.data || response;
     } catch (error) {
       console.error('Error creating event:', error);
       throw error;
     }
+  }
+  
+  // Cache invalidation methods
+  invalidateEventCaches() {
+    // Clear all event-related caches when an event is created/modified
+    const keysToDelete = [];
+    
+    // Get all cache keys
+    for (const key of this.cache.cache.keys()) {
+      if (key.startsWith('events:') || key.startsWith('search:')) {
+        keysToDelete.push(key);
+      }
+    }
+    
+    // Delete the keys
+    keysToDelete.forEach(key => this.cache.delete(key));
+  }
+  
+  // Get cache statistics
+  getCacheStats() {
+    return this.cache.stats();
+  }
+  
+  // Clear all cache
+  clearCache() {
+    this.cache.clear();
   }
 
   // Helper method to get all events for a date range across all accounts/calendars
@@ -253,6 +290,15 @@ class MorgenAPIClient {
 
   async searchEvents(query, options = {}) {
     try {
+      // Generate cache key for search
+      const cacheKey = `search:${query}:${SimpleCache.hashSearchOptions(options)}`;
+      
+      // Check cache first
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+      
       // Set default date range if not provided (last 30 days to next 30 days)
       const start = options.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const end = options.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -279,7 +325,12 @@ class MorgenAPIClient {
       
       // Apply max_results limit
       const maxResults = options.max_results || 20;
-      return filtered.slice(0, maxResults);
+      const results = filtered.slice(0, maxResults);
+      
+      // Cache search results for 30 seconds
+      this.cache.set(cacheKey, results, 30);
+      
+      return results;
     } catch (error) {
       // Re-throw the error for proper error handling at the tool level
       throw error;
@@ -289,12 +340,25 @@ class MorgenAPIClient {
   // Helper method to get events for specific date ranges
   async getTodayEvents() {
     try {
+      const cacheKey = 'events:today';
+      
+      // Check cache first
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      return await this.getAllEventsInRange(today.toISOString(), tomorrow.toISOString());
+      const events = await this.getAllEventsInRange(today.toISOString(), tomorrow.toISOString());
+      
+      // Cache for 2 minutes (120 seconds)
+      this.cache.set(cacheKey, events, 120);
+      
+      return events;
     } catch (error) {
       console.error('Error in getTodayEvents:', error);
       // Return empty array for graceful degradation
@@ -304,6 +368,14 @@ class MorgenAPIClient {
 
   async getWeekEvents() {
     try {
+      const cacheKey = 'events:week';
+      
+      // Check cache first
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -340,6 +412,9 @@ class MorgenAPIClient {
         }
       }
       
+      // Cache for 2 minutes (120 seconds)
+      this.cache.set(cacheKey, eventsByDay, 120);
+      
       return eventsByDay;
     } catch (error) {
       console.error('Error in getWeekEvents:', error);
@@ -359,18 +434,50 @@ class MorgenAPIClient {
   // New getEvents method with filtering support
   async getEvents(options = {}) {
     try {
-      const { start_date, end_date, calendar_ids } = options;
+      const { account_id, start_date, end_date, calendar_ids } = options;
       
-      if (!start_date || !end_date) {
-        throw new Error('start_date and end_date are required');
+      if (!start_date || !end_date || !calendar_ids) {
+        throw new Error('start_date, end_date, account_id, and calendar_ids are required');
+      }
+      if (!account_id && calendar_ids === 'all') {
+        throw new Error('account_id is required when calendar_ids is "all"');
       }
       
-      let events = await this.getAllEventsInRange(start_date, end_date);
+      // Generate cache key based on parameters
+      const cacheKey = SimpleCache.generateEventKey('events:range', {
+        account_id,
+        start_date,
+        end_date,
+        calendar_ids: calendar_ids || 'all'
+      });
       
-      // Filter by calendar IDs if specified
-      if (calendar_ids && Array.isArray(calendar_ids) && calendar_ids.length > 0) {
-        events = events.filter(event => calendar_ids.includes(event.calendar_id));
+      // Check cache first
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        return cached;
       }
+      
+      let events;
+      
+      // Handle calendar_ids filtering
+      if (!calendar_ids || calendar_ids === 'all' || calendar_ids === 'ALL') {
+        // Get events from all calendars
+        events = await this.getAllEventsInRange(start_date, end_date);
+      } else {
+        // Validate and process calendar_ids
+        if (typeof calendar_ids !== 'string') {
+          throw new Error('calendar_ids must be a string. Use "all" for all calendars or comma-separated IDs like "cal-1,cal-2"');
+        }
+        events = await this.listEvents({
+          accountId: account_id,
+          start: start_date,
+          end: end_date,
+          calendarIds: calendar_ids
+        });
+      }
+      
+      // Cache for 1 minute (60 seconds)
+      this.cache.set(cacheKey, events, 60);
       
       return events;
     } catch (error) {
