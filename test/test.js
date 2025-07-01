@@ -85,6 +85,17 @@ const mockResponses = {
           start: new Date(Date.now() + 14400000).toISOString(),
           end: new Date(Date.now() + 18000000).toISOString(),
           timeZone: 'America/New_York'
+        },
+        {
+          id: 'evt-4',
+          uid: 'uid-4',
+          calendarId: 'cal-2',
+          accountId: 'acc-2',
+          title: 'Untitled Event',
+          description: '',
+          start: new Date(Date.now() + 21600000).toISOString(),
+          end: new Date(Date.now() + 25200000).toISOString(),
+          timeZone: 'America/New_York'
         }
       ]
     }
@@ -183,6 +194,7 @@ async function runTests() {
     testGetEvents,
     testCreateEvent,
     testSearchEvents,
+    testEventFiltering,
     testToolSchemas,
     testErrorHandling
   ];
@@ -250,7 +262,7 @@ async function testGetEvents() {
   const client = new MorgenAPIClient('test-api-key-123');
   const events = await client.listEvents();
   
-  // Should return 2 events (the 3rd is filtered out as "Busy (via Morgen)")
+  // Should return 2 events (3rd and 4th are filtered out as "Busy (via Morgen)" and "Untitled Event")
   if (events.length !== 2) {
     throw new Error(`Expected 2 events, got ${events.length}`);
   }
@@ -259,6 +271,12 @@ async function testGetEvents() {
   const busyEvents = events.filter(event => event.title === 'Busy (via Morgen)');
   if (busyEvents.length > 0) {
     throw new Error('Busy (via Morgen) events should be filtered out');
+  }
+  
+  // Verify that no "Untitled Event" events are returned
+  const untitledEvents = events.filter(event => event.title === 'Untitled Event');
+  if (untitledEvents.length > 0) {
+    throw new Error('Untitled Event events should be filtered out');
   }
   
   // Test today's events
@@ -306,6 +324,51 @@ async function testSearchEvents() {
   const limited = await client.searchEvents('meeting', { max_results: 1 });
   if (limited.length > 1) {
     throw new Error('Max results not respected');
+  }
+}
+
+async function testEventFiltering() {
+  const client = new MorgenAPIClient('test-api-key-123');
+  
+  // Test that filtered events are excluded from all methods
+  const allEvents = await client.listEvents();
+  
+  // Verify no filtered events in results
+  const busyEvents = allEvents.filter(event => event.title === 'Busy (via Morgen)');
+  const untitledEvents = allEvents.filter(event => event.title === 'Untitled Event');
+  
+  if (busyEvents.length > 0) {
+    throw new Error('listEvents should filter out "Busy (via Morgen)" events');
+  }
+  
+  if (untitledEvents.length > 0) {
+    throw new Error('listEvents should filter out "Untitled Event" events');
+  }
+  
+  // Test search filtering
+  const searchResults = await client.searchEvents('event'); // Should match "Untitled Event" but it should be filtered
+  const searchUntitled = searchResults.filter(event => event.title === 'Untitled Event');
+  const searchBusy = searchResults.filter(event => event.title === 'Busy (via Morgen)');
+  
+  if (searchUntitled.length > 0) {
+    throw new Error('searchEvents should filter out "Untitled Event" events');
+  }
+  
+  if (searchBusy.length > 0) {
+    throw new Error('searchEvents should filter out "Busy (via Morgen)" events');
+  }
+  
+  // Verify we still get valid events
+  if (allEvents.length !== 2) {
+    throw new Error(`Expected 2 valid events after filtering, got ${allEvents.length}`);
+  }
+  
+  // Verify the returned events are the expected ones
+  const eventTitles = allEvents.map(event => event.title).sort();
+  const expectedTitles = ['Client Review', 'Team Meeting'];
+  
+  if (JSON.stringify(eventTitles) !== JSON.stringify(expectedTitles)) {
+    throw new Error(`Expected events [${expectedTitles.join(', ')}], got [${eventTitles.join(', ')}]`);
   }
 }
 
