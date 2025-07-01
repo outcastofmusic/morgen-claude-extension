@@ -11,6 +11,7 @@ const {
 
 const MorgenAPIClient = require('./morgen-api-client.js');
 const {
+  getCurrentTimeString,
   formatEvent,
   formatCalendar,
   formatAccount,
@@ -257,8 +258,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         });
         
         const todayContent = todayEvents.length > 0
-          ? `📅 Today's Schedule (${today}) - ${todayEvents.length} event(s):\n\n${todayEvents.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
-          : `📅 No events scheduled for today (${today})`;
+          ? `📅 Today's Schedule (${today}) - ${todayEvents.length} event(s):\n${getCurrentTimeString()}\n\n${todayEvents.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
+          : `📅 No events scheduled for today (${today})\n${getCurrentTimeString()}`;
         
         return {
           content: [{
@@ -271,8 +272,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         console.error('Handling get_week_events tool call');
         const weekEvents = await apiClient.getWeekEvents();
         const weekContent = weekEvents.length > 0
-          ? `📅 This Week's Schedule - ${weekEvents.length} event(s):${formatEventsByDay(weekEvents)}`
-          : '📅 No events scheduled for this week';
+          ? `📅 This Week's Schedule - ${weekEvents.length} event(s):\n${getCurrentTimeString()}${formatEventsByDay(weekEvents)}`
+          : `📅 No events scheduled for this week\n${getCurrentTimeString()}`;
         
         return {
           content: [{
@@ -299,8 +300,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         const events = await apiClient.listEvents(eventParams);
         const eventsContent = events.length > 0
-          ? `📅 Found ${events.length} event(s):\n\n${events.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
-          : '📅 No events found for the specified criteria';
+          ? `📅 Found ${events.length} event(s):\n${getCurrentTimeString()}\n\n${events.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
+          : `📅 No events found for the specified criteria\n${getCurrentTimeString()}`;
         
         return {
           content: [{
@@ -326,8 +327,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         const searchResults = await apiClient.searchEvents(args.query, searchOptions);
         const searchContent = searchResults.length > 0
-          ? `🔍 Found ${searchResults.length} event(s) matching '${args.query}':\n\n${searchResults.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
-          : `🔍 No events found matching '${args.query}'`;
+          ? `🔍 Found ${searchResults.length} event(s) matching '${args.query}':\n${getCurrentTimeString()}\n\n${searchResults.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
+          : `🔍 No events found matching '${args.query}'\n${getCurrentTimeString()}`;
         
         return {
           content: [{

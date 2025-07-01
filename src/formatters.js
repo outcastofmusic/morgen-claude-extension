@@ -1,5 +1,21 @@
 // Utility functions for formatting calendar and event data
 
+function getCurrentTimeString() {
+  const now = new Date();
+  const options = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZoneName: 'short'
+  };
+  
+  return `Current time: ${now.toLocaleString('en-US', options)}`;
+}
+
 function formatDateTime(dateString) {
   if (!dateString) return 'N/A';
   
@@ -122,6 +138,7 @@ function formatEventsByDay(events) {
 }
 
 module.exports = {
+  getCurrentTimeString,
   formatDateTime,
   formatEvent,
   formatCalendar,

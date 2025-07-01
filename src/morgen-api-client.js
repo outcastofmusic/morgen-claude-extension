@@ -78,7 +78,10 @@ class MorgenAPIClient {
     const endpoint = queryString ? `/events/list?${queryString}` : '/events/list';
     
     const response = await this.request(endpoint);
-    return response.data?.events || [];
+    const events = response.data?.events || [];
+    
+    // Filter out "Busy (via Morgen)" events
+    return events.filter(event => event.title !== 'Busy (via Morgen)');
   }
 
   async createEvent(eventData) {
@@ -149,9 +152,14 @@ class MorgenAPIClient {
       // Get all events in the specified range
       const allEvents = await this.getAllEventsInRange(start, end);
       
-      // Filter events based on search query
+      // Filter events based on search query and exclude "Busy (via Morgen)" events
       const searchLower = query.toLowerCase();
       const filtered = allEvents.filter(event => {
+        // Skip "Busy (via Morgen)" events
+        if (event.title === 'Busy (via Morgen)') {
+          return false;
+        }
+        
         const title = (event.title || '').toLowerCase();
         const description = (event.description || '').toLowerCase();
         const location = (event.location || '').toLowerCase();

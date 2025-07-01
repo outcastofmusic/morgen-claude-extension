@@ -74,6 +74,17 @@ const mockResponses = {
           start: new Date(Date.now() + 7200000).toISOString(),
           end: new Date(Date.now() + 10800000).toISOString(),
           timeZone: 'America/New_York'
+        },
+        {
+          id: 'evt-3',
+          uid: 'uid-3',
+          calendarId: 'cal-1',
+          accountId: 'acc-1',
+          title: 'Busy (via Morgen)',
+          description: 'Duplicate busy time sync',
+          start: new Date(Date.now() + 14400000).toISOString(),
+          end: new Date(Date.now() + 18000000).toISOString(),
+          timeZone: 'America/New_York'
         }
       ]
     }
@@ -128,21 +139,26 @@ function createMockFetch() {
       };
     }
     
-    // For /events/list endpoint, check if we have required parameters
+    // For /events/list endpoint, filter events by account if accountId is provided
     if (baseEndpoint === '/events/list') {
       const params = urlObj.searchParams;
       const accountId = params.get('accountId');
-      const calendarIds = params.get('calendarIds');
       
-      // If missing required parameters, return 400 error
-      if (!accountId || !calendarIds) {
+      if (accountId) {
+        // Filter events by the specified accountId
+        const filteredEvents = responseData.data.events.filter(event => event.accountId === accountId);
         return {
-          ok: false,
-          status: 400,
-          statusText: 'Bad Request',
-          json: async () => ({ error: 'Missing required parameters: accountId and calendarIds' })
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            data: {
+              events: filteredEvents
+            }
+          })
         };
       }
+      // If no accountId, return all events (for backwards compatibility)
     }
     
     // Return successful response
@@ -234,8 +250,15 @@ async function testGetEvents() {
   const client = new MorgenAPIClient('test-api-key-123');
   const events = await client.listEvents();
   
+  // Should return 2 events (the 3rd is filtered out as "Busy (via Morgen)")
   if (events.length !== 2) {
     throw new Error(`Expected 2 events, got ${events.length}`);
+  }
+  
+  // Verify that no "Busy (via Morgen)" events are returned
+  const busyEvents = events.filter(event => event.title === 'Busy (via Morgen)');
+  if (busyEvents.length > 0) {
+    throw new Error('Busy (via Morgen) events should be filtered out');
   }
   
   // Test today's events
