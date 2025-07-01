@@ -128,6 +128,23 @@ function createMockFetch() {
       };
     }
     
+    // For /events/list endpoint, check if we have required parameters
+    if (baseEndpoint === '/events/list') {
+      const params = urlObj.searchParams;
+      const accountId = params.get('accountId');
+      const calendarIds = params.get('calendarIds');
+      
+      // If missing required parameters, return 400 error
+      if (!accountId || !calendarIds) {
+        return {
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          json: async () => ({ error: 'Missing required parameters: accountId and calendarIds' })
+        };
+      }
+    }
+    
     // Return successful response
     return {
       ok: true,

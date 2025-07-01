@@ -466,3 +466,5 @@ main().catch((error) => {
 });
 
 console.error('=== MORGEN CALENDAR MCP SERVER SETUP COMPLETE ===');
+
+module.exports = { toolSchemas };
