@@ -22,9 +22,6 @@ async function build() {
       outfile: 'dist/index.js',
       external: ['@modelcontextprotocol/sdk'],
       format: 'cjs',
-      banner: {
-        js: '#!/usr/bin/env node'
-      },
       minify: false, // Keep readable for debugging
       sourcemap: true,
       metafile: true,

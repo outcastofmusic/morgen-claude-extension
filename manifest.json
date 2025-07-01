@@ -2,84 +2,84 @@
   "dxt_version": "0.1",
   "name": "morgen-calendar",
   "display_name": "Morgen Calendar",
-  "description": "Connect Claude to your Morgen calendars for natural language calendar management across all providers",
   "version": "1.0.0",
+  "description": "Connect Claude to your Morgen calendars for natural language calendar management across all providers",
+  "long_description": "The Morgen Calendar extension allows Claude to seamlessly integrate with your calendars through the Morgen platform. Manage events across Google Calendar, Outlook, Apple Calendar, Exchange, and other providers using natural language. Create events, search your schedule, view upcoming appointments, and manage multiple calendars - all through simple conversation with Claude.\n\nFeatures:\n- View and manage calendars from multiple providers\n- Create new events with natural language\n- Search existing events by title, description, or location\n- Get today's or week's schedule overview\n- Access all your connected calendar accounts",
   "author": {
     "name": "Extension Developer",
-    "email": "developer@example.com"
+    "email": "developer@example.com",
+    "url": "https://github.com/outcastofmusic/morgen-claude-extension"
   },
-  "license": "MIT",
-  "keywords": ["calendar", "morgen", "scheduling", "productivity"],
-  "homepage": "https://github.com/outcastofmusic/morgen-claude-extension",
   "repository": {
     "type": "git",
     "url": "https://github.com/outcastofmusic/morgen-claude-extension"
   },
-  
-  "runtime": {
-    "type": "node",
-    "version": ">=18.0.0"
-  },
-  
-  "main": "dist/index.js",
-  
-  "server": {
-    "type": "node",
-    "entry_point": "dist/index.js",
-    "mcp_config": {
-      "name": "morgen-calendar",
-      "description": "Access and manage your calendars through Morgen",
-      "command": "node",
-      "args": ["dist/index.js"]
-    },
-    "env": {
-      "MORGEN_API_KEY": "${MORGEN_API_KEY}"
-    }
-  },
-  
-  "configuration": {
-    "schema": {
-      "type": "object",
-      "properties": {
-        "MORGEN_API_KEY": {
-          "type": "string",
-          "title": "Morgen API Key",
-          "description": "Your Morgen API key from https://platform.morgen.so/developers-api",
-          "required": true,
-          "secret": true,
-          "minLength": 10,
-          "maxLength": 200,
-          "pattern": "^[A-Za-z0-9_-]+$",
-          "ui": {
-            "hint": "Get your API key from Morgen Developer Platform",
-            "placeholder": "Enter your Morgen API key"
-          }
-        }
-      }
-    }
-  },
-  
-  "permissions": {
-    "network": {
-      "allowed": true,
-      "domains": ["api.morgen.so"],
-      "description": "Required for accessing Morgen calendar data"
-    }
-  },
-  
+  "homepage": "https://github.com/outcastofmusic/morgen-claude-extension",
+  "documentation": "https://github.com/outcastofmusic/morgen-claude-extension#readme",
+  "support": "https://github.com/outcastofmusic/morgen-claude-extension/issues",
   "icon": "assets/icon-light.svg",
-  
   "screenshots": [
     "assets/screenshots/calendar-view.png",
     "assets/screenshots/event-creation.png",
     "assets/screenshots/search-results.png"
   ],
-  
-  "categories": ["productivity", "calendar", "scheduling"],
-  
-  "min_claude_version": "1.0.0",
-  
-  "changelog": {
-    "1.0.0": "Initial release with calendar management features"
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "MORGEN_API_KEY": "${user_config.api_key}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "list_calendars",
+      "description": "View all connected calendars"
+    },
+    {
+      "name": "list_accounts", 
+      "description": "View connected calendar providers"
+    },
+    {
+      "name": "get_today_events",
+      "description": "Get today's events across all calendars"
+    },
+    {
+      "name": "get_week_events",
+      "description": "Get this week's events organized by day"
+    },
+    {
+      "name": "get_events",
+      "description": "Get events from specific calendars/dates"
+    },
+    {
+      "name": "search_events",
+      "description": "Search events by title/description/location"
+    },
+    {
+      "name": "create_event",
+      "description": "Create new calendar events"
+    }
+  ],
+  "keywords": ["calendar", "morgen", "scheduling", "productivity", "events", "automation"],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.11.6",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "Morgen API Key",
+      "description": "Your Morgen API key from https://platform.morgen.so/developers-api",
+      "sensitive": true,
+      "required": true
+    }
   }
 }
