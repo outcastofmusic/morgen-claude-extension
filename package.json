@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node src/index.js",
     "build": "node build.js",
-    "test": "node test/test.js"
+    "test": "node test/test.js",
+    "test:integration": "node test/integration.js"
   },
   "repository": {
     "type": "git",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/dxt": "^0.2.0",
+    "dotenv": "^17.0.0",
     "esbuild": "^0.25.5"
   }
 }

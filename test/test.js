@@ -290,6 +290,27 @@ async function testGetEvents() {
   if (!Array.isArray(weekEvents)) {
     throw new Error('getWeekEvents should return an array');
   }
+  
+  // Test "all" calendar IDs
+  const allCalendarEvents = await client.listEvents({ calendarIds: 'all' });
+  if (!Array.isArray(allCalendarEvents)) {
+    throw new Error('listEvents with "all" should return an array');
+  }
+  if (allCalendarEvents.length !== 2) {
+    throw new Error(`Expected 2 events with "all" calendars, got ${allCalendarEvents.length}`);
+  }
+  
+  // Test "all" with date range
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const allWithDate = await client.listEvents({ 
+    calendarIds: 'all', 
+    start: tomorrow.toISOString(),
+    end: tomorrow.toISOString()
+  });
+  if (!Array.isArray(allWithDate)) {
+    throw new Error('listEvents with "all" and date range should return an array');
+  }
 }
 
 async function testCreateEvent() {

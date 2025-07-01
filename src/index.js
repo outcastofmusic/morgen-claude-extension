@@ -95,28 +95,28 @@ const toolSchemas = [
   },
   {
     name: 'get_events',
-    description: 'Get events from specific calendars/dates',
+    description: 'Get events from calendars with flexible filtering options. Can get all events or filter by specific calendars, dates, and accounts.',
     inputSchema: {
       type: 'object',
       properties: {
         calendar_ids: {
           type: 'string',
-          description: 'Comma-separated calendar IDs'
+          description: 'Calendar IDs to filter by. Use "all" for all calendars, or provide comma-separated calendar IDs like "cal-1,cal-2". Leave empty to get events from all calendars. Examples: "all", "cal-123", "cal-123,cal-456"'
         },
         start_date: {
           type: 'string',
-          description: 'Start date (ISO format)'
+          description: 'Start date in YYYY-MM-DD format (e.g., "2025-07-02"). If only start_date is provided, gets events for that single day.'
         },
         end_date: {
           type: 'string',
-          description: 'End date (ISO format)'
+          description: 'End date in YYYY-MM-DD format (e.g., "2025-07-05"). Used with start_date to define a date range.'
         },
         account_id: {
           type: 'string',
-          description: 'Specific account ID (optional)'
+          description: 'Filter by specific account ID (optional). Use with specific calendar_ids, not with "all".'
         }
       },
-      required: ['calendar_ids']
+      required: []
     }
   },
   {
@@ -271,9 +271,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_week_events':
         console.error('Handling get_week_events tool call');
         const weekEvents = await apiClient.getWeekEvents();
-        const weekContent = weekEvents.length > 0
-          ? `📅 This Week's Schedule - ${weekEvents.length} event(s):\n${getCurrentTimeString()}${formatEventsByDay(weekEvents)}`
-          : `📅 No events scheduled for this week\n${getCurrentTimeString()}`;
+        
+        // weekEvents is now an object organized by day names
+        const allWeekEvents = Object.values(weekEvents).flat();
+        const hasEvents = allWeekEvents.length > 0;
+        
+        let weekContent;
+        if (hasEvents) {
+          weekContent = `📅 This Week's Schedule - ${allWeekEvents.length} event(s):\n${getCurrentTimeString()}`;
+          for (const [day, dayEvents] of Object.entries(weekEvents)) {
+            if (dayEvents.length > 0) {
+              weekContent += `\n\n**${day}** (${dayEvents.length} event${dayEvents.length !== 1 ? 's' : ''}):\n`;
+              weekContent += formatEvents(dayEvents);
+            }
+          }
+        } else {
+          weekContent = `📅 No events scheduled for this week\n${getCurrentTimeString()}`;
+        }
         
         return {
           content: [{
@@ -284,21 +298,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
       case 'get_events':
         console.error('Handling get_events tool call');
-        if (!args.calendar_ids) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            'calendar_ids parameter is required'
-          );
+        
+        let eventParams = {};
+        
+        // Handle date parameters - use new getEvents method format
+        if (args.start_date) {
+          eventParams.start_date = `${args.start_date}T00:00:00.000Z`;
         }
         
-        const eventParams = {
-          calendarIds: args.calendar_ids,
-          start: args.start_date,
-          end: args.end_date,
-          accountId: args.account_id,
-        };
+        if (args.end_date) {
+          eventParams.end_date = `${args.end_date}T23:59:59.999Z`;
+        } else if (args.start_date && !args.end_date) {
+          // If only start_date provided, use it as both start and end (single day)
+          eventParams.end_date = `${args.start_date}T23:59:59.999Z`;
+        }
         
-        const events = await apiClient.listEvents(eventParams);
+        if (args.calendar_ids) {
+          eventParams.calendar_ids = args.calendar_ids;
+        }
+        
+        let events;
+        
+        // If no date parameters, get today's events
+        if (!eventParams.start_date && !eventParams.end_date) {
+          events = await apiClient.getTodayEvents();
+        } else {
+          try {
+            events = await apiClient.getEvents(eventParams);
+          } catch (error) {
+            console.error('get_events error:', error.message);
+            throw error;
+          }
+        }
         const eventsContent = events.length > 0
           ? `📅 Found ${events.length} event(s):\n${getCurrentTimeString()}\n\n${events.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
           : `📅 No events found for the specified criteria\n${getCurrentTimeString()}`;
@@ -325,17 +356,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           max_results: args.max_results,
         };
         
-        const searchResults = await apiClient.searchEvents(args.query, searchOptions);
-        const searchContent = searchResults.length > 0
-          ? `🔍 Found ${searchResults.length} event(s) matching '${args.query}':\n${getCurrentTimeString()}\n\n${searchResults.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
-          : `🔍 No events found matching '${args.query}'\n${getCurrentTimeString()}`;
-        
-        return {
-          content: [{
-            type: 'text',
-            text: searchContent,
-          }],
-        };
+        try {
+          const searchResults = await apiClient.searchEvents(args.query, searchOptions);
+          
+          const searchContent = searchResults.length > 0
+            ? `🔍 Found ${searchResults.length} event(s) matching '${args.query}':\n${getCurrentTimeString()}\n\n${searchResults.map((event, i) => `${i + 1}. ${formatEvent(event)}`).join('\n\n')}`
+            : `🔍 No events found matching '${args.query}'\n${getCurrentTimeString()}\n\n` +
+              `Searched in date range: ${searchOptions.start_date || 'last 30 days'} to ${searchOptions.end_date || 'next 30 days'}`;
+          
+          return {
+            content: [{
+              type: 'text',
+              text: searchContent,
+            }],
+          };
+        } catch (error) {
+          // Provide helpful error message
+          let errorMessage = `🔍 Search failed for '${args.query}': ${error.message}`;
+          
+          if (error.message.includes('No calendar accounts')) {
+            errorMessage += '\n\nPlease connect your calendar accounts at https://platform.morgen.so';
+          } else if (error.message.includes('No calendars available')) {
+            errorMessage += '\n\nPlease add calendars to your connected accounts.';
+          }
+          
+          return {
+            content: [{
+              type: 'text',
+              text: errorMessage,
+            }],
+          };
+        }
         
       case 'create_event':
         console.error('Handling create_event tool call');
