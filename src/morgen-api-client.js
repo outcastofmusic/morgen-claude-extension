@@ -437,8 +437,8 @@ class MorgenAPIClient {
       if (!start_date || !end_date || !calendar_ids) {
         throw new Error('start_date, end_date, account_id, and calendar_ids are required');
       }
-      if (!account_id && calendar_ids === 'all') {
-        throw new Error('account_id is required when calendar_ids is "all"');
+      if (!account_id && calendar_ids !== 'all') {
+        throw new Error('account_id is required when calendar_ids is not "all"');
       }
       
       // Generate cache key based on parameters

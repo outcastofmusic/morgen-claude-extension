@@ -169,7 +169,8 @@ class IntegrationTestRunner {
     
     const events = await this.client.getEvents({
       start_date: now.toISOString(),
-      end_date: tomorrow.toISOString()
+      end_date: tomorrow.toISOString(),
+      calendar_ids: 'all'
     });
     
     if (!Array.isArray(events)) {
@@ -334,14 +335,14 @@ class IntegrationTestRunner {
       await this.setup();
       
       // Run all integration tests
-      // await this.runTest('List Calendars', () => this.testListCalendars());
-      // await this.runTest('List Accounts', () => this.testListAccounts());
-      // await this.runTest('Get Today Events', () => this.testGetTodayEvents());
-      // await this.runTest('Get Week Events', () => this.testGetWeekEvents());
+      await this.runTest('List Calendars', () => this.testListCalendars());
+      await this.runTest('List Accounts', () => this.testListAccounts());
+      await this.runTest('Get Today Events', () => this.testGetTodayEvents());
+      await this.runTest('Get Week Events', () => this.testGetWeekEvents());
       await this.runTest('Get Events with Filters', () => this.testGetEvents());
-      // await this.runTest('Search Events', () => this.testSearchEvents());
-      // await this.runTest('Create Event', () => this.testCreateEvent());
-      // await this.runTest('Error Handling', () => this.testErrorHandling());
+      await this.runTest('Search Events', () => this.testSearchEvents());
+      await this.runTest('Create Event', () => this.testCreateEvent());
+      await this.runTest('Error Handling', () => this.testErrorHandling());
       
     } catch (error) {
       console.error('❌ Test setup failed:', error.message);
