@@ -148,7 +148,6 @@ class MorgenAPIClient {
     
     const queryString = queryParams.toString();
     const endpoint = `/events/list?${queryString}`;
-    console.log('endpoint', endpoint);
     const response = await this.request(endpoint);
     const events = response.data?.events || [];
     
@@ -194,7 +193,6 @@ class MorgenAPIClient {
         timeZone: eventData.timezone || 'UTC'
       };
       
-      console.log('Creating event with data:', JSON.stringify(morgenEventData, null, 2));
       
       const response = await this.request('/events/create', {
         method: 'POST',
