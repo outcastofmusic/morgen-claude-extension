@@ -116,7 +116,7 @@ const toolSchemas = [
           description: 'Provide a specific account ID. Use with specific calendar_ids, not with "all".'
         }
       },
-      required: []
+      required: ['start_date', 'end_date', 'calendar_ids']
     }
   },
   {
