@@ -163,7 +163,7 @@ class MorgenAPIClient {
   async createEvent(eventData) {
     try {
       // Validate required fields
-      const requiredFields = ['title', 'start_date', 'end_date', 'calendar_id'];
+      const requiredFields = ['title', 'startDate', 'endDate', 'calendarId'];
       for (const field of requiredFields) {
         if (!eventData[field]) {
           throw new Error(`Missing required field: ${field}`);
@@ -171,26 +171,26 @@ class MorgenAPIClient {
       }
       
       // Calculate duration in minutes
-      const startTime = new Date(eventData.start_date);
-      const endTime = new Date(eventData.end_date);
+      const startTime = new Date(eventData.startDate);
+      const endTime = new Date(eventData.endDate);
       const durationMinutes = Math.round((endTime - startTime) / (1000 * 60));
       
       // Get calendar info to extract accountId
       const calendars = await this.listCalendars();
-      const calendar = calendars.find(cal => cal.id === eventData.calendar_id);
+      const calendar = calendars.find(cal => cal.id === eventData.calendarId);
       if (!calendar) {
-        throw new Error(`Calendar with ID ${eventData.calendar_id} not found`);
+        throw new Error(`Calendar with ID ${eventData.calendarId} not found`);
       }
       
       // Transform event data to match Morgen API format
       const morgenEventData = {
         title: eventData.title,
         description: eventData.description || '',
-        start: eventData.start_date,
+        start: eventData.startDate,
         duration: `${durationMinutes}m`,
-        accountId: calendar.account_id || calendar.accountId,
-        calendarId: eventData.calendar_id,
-        timeZone: eventData.timezone || 'UTC'
+        accountId: calendar.accountId,
+        calendarId: eventData.calendarId,
+        timeZone: eventData.timeZone || 'UTC'
       };
       
       
@@ -257,33 +257,44 @@ class MorgenAPIClient {
       calendarsByAccount[calendar.accountId].push(calendar.id);
     });
     
-    // Query events for each account
-    const allEvents = [];
-    const errors = [];
-    
-    for (const accountId of Object.keys(calendarsByAccount)) {
-      const calendarIds = calendarsByAccount[accountId].join(',');
-      try {
-        const events = await this.listEvents({
-          accountId: accountId,
-          calendarIds: calendarIds,
-          start: start,
-          end: end
-        });
-        allEvents.push(...events);
-      } catch (error) {
-        console.error(`Error fetching events for account ${accountId}:`, error);
-        errors.push(`Account ${accountId}: ${error.message}`);
-        // Continue with other accounts
+    // Try to get all events with just calendar IDs (no account ID)
+    const allCalendarIds = calendars.map(cal => cal.id).join(',');
+    try {
+      const events = await this.listEvents({
+        calendarIds: allCalendarIds,
+        start: start,
+        end: end
+      });
+      return events;
+    } catch (error) {
+      // If that fails, fall back to querying by account
+      const allEvents = [];
+      const errors = [];
+      
+      for (const accountId of Object.keys(calendarsByAccount)) {
+        const calendarIds = calendarsByAccount[accountId].join(',');
+        try {
+          const events = await this.listEvents({
+            accountId: accountId,
+            calendarIds: calendarIds,
+            start: start,
+            end: end
+          });
+          allEvents.push(...events);
+        } catch (error) {
+          console.error(`Error fetching events for account ${accountId}:`, error);
+          errors.push(`Account ${accountId}: ${error.message}`);
+          // Continue with other accounts
+        }
       }
-    }
     
-    // If all accounts failed, throw an error
-    if (allEvents.length === 0 && errors.length > 0) {
-      throw new Error(`Failed to fetch events from all accounts:\n${errors.join('\n')}`);
+      // If all accounts failed, throw an error
+      if (allEvents.length === 0 && errors.length > 0) {
+        throw new Error(`Failed to fetch events from all accounts:\n${errors.join('\n')}`);
+      }
+      
+      return allEvents;
     }
-    
-    return allEvents;
   }
 
   async searchEvents(query, options = {}) {
@@ -298,8 +309,8 @@ class MorgenAPIClient {
       }
       
       // Set default date range if not provided (last 30 days to next 30 days)
-      const start = options.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const end = options.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const start = options.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const end = options.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       
       // Get all events in the specified range
       const allEvents = await this.getAllEventsInRange(start, end);
@@ -321,8 +332,8 @@ class MorgenAPIClient {
                location.includes(searchLower);
       });
       
-      // Apply max_results limit
-      const maxResults = options.max_results || 20;
+      // Apply maxResults limit
+      const maxResults = options.maxResults || 20;
       const results = filtered.slice(0, maxResults);
       
       // Cache search results for 30 seconds
@@ -432,21 +443,19 @@ class MorgenAPIClient {
   // New getEvents method with filtering support
   async getEvents(options = {}) {
     try {
-      const { account_id, start_date, end_date, calendar_ids } = options;
+      const { accountId, startDate, endDate, calendarIds } = options;
       
-      if (!start_date || !end_date || !calendar_ids) {
-        throw new Error('start_date, end_date, account_id, and calendar_ids are required');
+      if (!startDate || !endDate || !calendarIds) {
+        throw new Error('startDate, endDate, and calendarIds are required');
       }
-      if (!account_id && calendar_ids !== 'all') {
-        throw new Error('account_id is required when calendar_ids is not "all"');
-      }
+      // accountId is now optional - the API can work with just calendar IDs
       
       // Generate cache key based on parameters
       const cacheKey = SimpleCache.generateEventKey('events:range', {
-        account_id,
-        start_date,
-        end_date,
-        calendar_ids: calendar_ids || 'all'
+        accountId,
+        startDate,
+        endDate,
+        calendarIds: calendarIds || 'all'
       });
       
       // Check cache first
@@ -457,21 +466,25 @@ class MorgenAPIClient {
       
       let events;
       
-      // Handle calendar_ids filtering
-      if (!calendar_ids || calendar_ids === 'all' || calendar_ids === 'ALL') {
+      // Handle calendarIds filtering
+      if (!calendarIds || calendarIds === 'all' || calendarIds === 'ALL') {
         // Get events from all calendars
-        events = await this.getAllEventsInRange(start_date, end_date);
+        events = await this.getAllEventsInRange(startDate, endDate);
       } else {
-        // Validate and process calendar_ids
-        if (typeof calendar_ids !== 'string') {
-          throw new Error('calendar_ids must be a string. Use "all" for all calendars or comma-separated IDs like "cal-1,cal-2"');
+        // Validate and process calendarIds
+        if (typeof calendarIds !== 'string') {
+          throw new Error('calendarIds must be a string. Use "all" for all calendars or comma-separated IDs like "cal-1,cal-2"');
         }
-        events = await this.listEvents({
-          accountId: account_id,
-          start: start_date,
-          end: end_date,
-          calendarIds: calendar_ids
-        });
+        const listParams = {
+          start: startDate,
+          end: endDate,
+          calendarIds: calendarIds
+        };
+        // Only include accountId if it's provided
+        if (accountId) {
+          listParams.accountId = accountId;
+        }
+        events = await this.listEvents(listParams);
       }
       
       // Cache for 1 minute (60 seconds)

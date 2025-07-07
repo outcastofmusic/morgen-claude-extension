@@ -168,9 +168,9 @@ class IntegrationTestRunner {
     tomorrow.setDate(tomorrow.getDate() + 1);
     
     const events = await this.client.getEvents({
-      start_date: now.toISOString(),
-      end_date: tomorrow.toISOString(),
-      calendar_ids: 'all'
+      startDate: now.toISOString(),
+      endDate: tomorrow.toISOString(),
+      calendarIds: 'all'
     });
     
     if (!Array.isArray(events)) {
@@ -186,10 +186,10 @@ class IntegrationTestRunner {
       const calendarIds = calendars.slice(0,2).map(calendar => calendar.id).join(',');
       console.log('calendar', calendars[0])
       const filteredEvents = await this.client.getEvents({
-        account_id: calendars[0].accountId,
-        start_date: now.toISOString(),
-        end_date: tomorrow.toISOString(),
-        calendar_ids: calendarIds
+        accountId: calendars[0].accountId,
+        startDate: now.toISOString(),
+        endDate: tomorrow.toISOString(),
+        calendarIds: calendarIds
       });
       
       if (!Array.isArray(filteredEvents)) {
@@ -210,9 +210,9 @@ class IntegrationTestRunner {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       
       const results = await this.client.searchEvents(searchTerm, {
-        start_date: weekAgo.toISOString(),
-        end_date: now.toISOString(),
-        max_results: 10
+        startDate: weekAgo.toISOString(),
+        endDate: now.toISOString(),
+        maxResults: 10
       });
       
       if (!Array.isArray(results)) {
@@ -251,10 +251,10 @@ class IntegrationTestRunner {
     const testEvent = {
       title: `Integration Test Event - ${now.toISOString().split('T')[0]}`,
       description: 'This is a test event created by the integration test suite. It can be safely deleted.',
-      start_date: startTime.toISOString(),
-      end_date: endTime.toISOString(),
-      calendar_id: calendars[0].id,
-      timezone: 'UTC'
+      startDate: startTime.toISOString(),
+      endDate: endTime.toISOString(),
+      calendarId: calendars[0].id,
+      timeZone: 'UTC'
     };
     
     this.log(`Creating test event: ${testEvent.title}`);

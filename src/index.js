@@ -116,7 +116,7 @@ const toolSchemas = [
           description: 'Provide a specific account ID. Use with specific calendar_ids, not with "all".'
         }
       },
-      required: ['start_date', 'end_date', 'calendar_ids']
+      required: ['calendar_ids']
     }
   },
   {
@@ -186,7 +186,7 @@ const toolSchemas = [
           description: 'Time zone (optional, defaults to UTC, e.g., "America/New_York")'
         }
       },
-      required: ['account_id', 'calendar_id', 'title', 'start_time']
+      required: ['calendar_id', 'title', 'start_time']
     }
   }
 ];
@@ -282,7 +282,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           for (const [day, dayEvents] of Object.entries(weekEvents)) {
             if (dayEvents.length > 0) {
               weekContent += `\n\n**${day}** (${dayEvents.length} event${dayEvents.length !== 1 ? 's' : ''}):\n`;
-              weekContent += formatEvents(dayEvents);
+              weekContent += formatEventsByDay(dayEvents);
             }
           }
         } else {
@@ -301,26 +301,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         let eventParams = {};
         
-        // Handle date parameters - use new getEvents method format
+        // Transform snake_case to camelCase for API client
         if (args.start_date) {
-          eventParams.start_date = `${args.start_date}T00:00:00.000Z`;
+          eventParams.startDate = `${args.start_date}T00:00:00.000Z`;
         }
         
         if (args.end_date) {
-          eventParams.end_date = `${args.end_date}T23:59:59.999Z`;
+          eventParams.endDate = `${args.end_date}T23:59:59.999Z`;
         } else if (args.start_date && !args.end_date) {
           // If only start_date provided, use it as both start and end (single day)
-          eventParams.end_date = `${args.start_date}T23:59:59.999Z`;
+          eventParams.endDate = `${args.start_date}T23:59:59.999Z`;
         }
         
         if (args.calendar_ids) {
-          eventParams.calendar_ids = args.calendar_ids;
+          eventParams.calendarIds = args.calendar_ids;
+        }
+        
+        if (args.account_id) {
+          eventParams.accountId = args.account_id;
         }
         
         let events;
         
         // If no date parameters, get today's events
-        if (!eventParams.start_date && !eventParams.end_date) {
+        if (!eventParams.startDate && !eventParams.endDate) {
           events = await apiClient.getTodayEvents();
         } else {
           try {
@@ -351,9 +355,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         
         const searchOptions = {
-          start_date: args.start_date,
-          end_date: args.end_date,
-          max_results: args.max_results,
+          startDate: args.start_date,
+          endDate: args.end_date,
+          maxResults: args.max_results,
         };
         
         try {
@@ -390,7 +394,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
       case 'create_event':
         console.error('Handling create_event tool call');
-        const required = ['account_id', 'calendar_id', 'title', 'start_time'];
+        const required = ['calendar_id', 'title', 'start_time'];
         for (const param of required) {
           if (!args[param]) {
             throw new McpError(
@@ -409,11 +413,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         
         const eventData = {
-          accountId: args.account_id,
-          calendarId: args.calendar_id,
           title: args.title,
-          start: args.start_time,
-          end: endTime,
+          startDate: args.start_time,
+          endDate: endTime,
+          calendarId: args.calendar_id,
           description: args.description,
           location: args.location,
           timeZone: args.time_zone || 'UTC',

@@ -199,7 +199,9 @@ async function runTests() {
     testErrorHandling,
     testCaching,
     testGetEventsAllCalendars,
-    testGetEventsValidation
+    testGetEventsValidation,
+    testBase64CalendarIds,
+    testToolSchemaUpdates
   ];
   
   console.log('🧪 Running Morgen Calendar Extension Tests\n');
@@ -320,12 +322,12 @@ async function testCreateEvent() {
   const client = new MorgenAPIClient('test-api-key-123');
   
   const eventData = {
-    calendar_id: 'cal-1',
+    calendarId: 'cal-1',
     title: 'New Event',
-    start_date: new Date(Date.now() + 86400000).toISOString(),
-    end_date: new Date(Date.now() + 90000000).toISOString(),
+    startDate: new Date(Date.now() + 86400000).toISOString(),
+    endDate: new Date(Date.now() + 90000000).toISOString(),
     description: 'Test event creation',
-    timezone: 'UTC'
+    timeZone: 'UTC'
   };
   
   const created = await client.createEvent(eventData);
@@ -344,7 +346,7 @@ async function testSearchEvents() {
   }
   
   // Search with max results
-  const limited = await client.searchEvents('meeting', { max_results: 1 });
+  const limited = await client.searchEvents('meeting', { maxResults: 1 });
   if (limited.length > 1) {
     throw new Error('Max results not respected');
   }
@@ -491,10 +493,10 @@ async function testCaching() {
   
   // Test cache invalidation after event creation
   const eventData = {
-    calendar_id: 'cal-1',
+    calendarId: 'cal-1',
     title: 'Cache Test Event',
-    start_date: new Date(Date.now() + 86400000).toISOString(),
-    end_date: new Date(Date.now() + 90000000).toISOString()
+    startDate: new Date(Date.now() + 86400000).toISOString(),
+    endDate: new Date(Date.now() + 90000000).toISOString()
   };
   
   // Get events to populate cache
@@ -519,10 +521,10 @@ async function testGetEventsAllCalendars() {
   
   // Test the exact failing scenario from Claude
   const params = {
-    end_date: '2025-07-02T23:59:59.999Z',
-    start_date: '2025-07-02T00:00:00.000Z',
-    calendar_ids: 'all',
-    account_id: 'acc-1'
+    endDate: '2025-07-02T23:59:59.999Z',
+    startDate: '2025-07-02T00:00:00.000Z',
+    calendarIds: 'all',
+    accountId: 'acc-1'
   };
   
   try {
@@ -546,9 +548,9 @@ async function testGetEventsAllCalendars() {
     
     // Test with specific calendar IDs as string
     const specificParams = {
-      end_date: '2025-07-02T23:59:59.999Z',
-      start_date: '2025-07-02T00:00:00.000Z',
-      calendar_ids: 'cal-1,cal-2'
+      endDate: '2025-07-02T23:59:59.999Z',
+      startDate: '2025-07-02T00:00:00.000Z',
+      calendarIds: 'cal-1,cal-2'
     };
     
     const specificEvents = await client.getEvents(specificParams);
@@ -558,9 +560,9 @@ async function testGetEventsAllCalendars() {
     
     // Test with calendar IDs as array
     const arrayParams = {
-      end_date: '2025-07-02T23:59:59.999Z',
-      start_date: '2025-07-02T00:00:00.000Z',
-      calendar_ids: ['cal-1', 'cal-2']
+      endDate: '2025-07-02T23:59:59.999Z',
+      startDate: '2025-07-02T00:00:00.000Z',
+      calendarIds: ['cal-1', 'cal-2']
     };
     
     const arrayEvents = await client.getEvents(arrayParams);
@@ -578,25 +580,25 @@ async function testGetEventsValidation() {
   
   // Test the problematic base64-encoded input from Claude
   const problematicParams = {
-    end_date: '2025-07-02T23:59:59.999Z',
-    start_date: '2025-07-02T00:00:00.000Z',
-    calendar_ids: ['cal-1', 'cal-2']
+    endDate: '2025-07-02T23:59:59.999Z',
+    startDate: '2025-07-02T00:00:00.000Z',
+    calendarIds: ['cal-1', 'cal-2']
   };
   
   try {
     await client.getEvents(problematicParams);
     throw new Error('Should have thrown error for base64 encoded calendar_ids');
   } catch (error) {
-    if (!error.message.includes('calendar_ids must be a string')) {
-      throw new Error(`Expected calendar_ids must be a string error message, got: ${error.message}`);
+    if (!error.message.includes('calendarIds must be a string')) {
+      throw new Error(`Expected calendarIds must be a string error message, got: ${error.message}`);
     }
   }
   
   // Test JSON array string input (another common mistake)
   const jsonArrayParams = {
-    end_date: '2025-07-02T23:59:59.999Z',
-    start_date: '2025-07-02T00:00:00.000Z',
-    calendar_ids: '["cal-1","cal-2"]'
+    endDate: '2025-07-02T23:59:59.999Z',
+    startDate: '2025-07-02T00:00:00.000Z',
+    calendarIds: '["cal-1","cal-2"]'
   };
   
   try {
@@ -610,30 +612,129 @@ async function testGetEventsValidation() {
   
   // Test empty calendar_ids
   const emptyParams = {
-    end_date: '2025-07-02T23:59:59.999Z',
-    start_date: '2025-07-02T00:00:00.000Z',
-    calendar_ids: null
+    endDate: '2025-07-02T23:59:59.999Z',
+    startDate: '2025-07-02T00:00:00.000Z',
+    calendarIds: null
   };
   
   try {
     await client.getEvents(emptyParams);
     throw new Error('Should have thrown error for empty calendar_ids');
   } catch (error) {
-    if (!error.message.includes('start_date, end_date, account_id, and calendar_ids are required')) {
-      throw new Error(`Expected start_date, end_date, account_id, and calendar_ids are required error message, got: ${error.message}`);
+    if (!error.message.includes('startDate, endDate, and calendarIds are required')) {
+      throw new Error(`Expected startDate, endDate, and calendarIds are required error message, got: ${error.message}`);
     }
   }
   
   // Test that valid comma-separated input works
   const validParams = {
-    end_date: '2025-07-02T23:59:59.999Z',
-    start_date: '2025-07-02T00:00:00.000Z',
-    calendar_ids: 'cal-1,cal-2'
+    endDate: '2025-07-02T23:59:59.999Z',
+    startDate: '2025-07-02T00:00:00.000Z',
+    calendarIds: 'cal-1,cal-2'
   };
   
   const events = await client.getEvents(validParams);
   if (!Array.isArray(events)) {
     throw new Error('Valid calendar_ids should return events array');
+  }
+}
+
+async function testBase64CalendarIds() {
+  const client = new MorgenAPIClient('test-api-key-123');
+  
+  // Test the exact base64-encoded calendar IDs that Claude Desktop was sending
+  const base64CalendarIds = 'WyI2ODAyMmM5OGRjY2JmMjk3NzU1MTFjY2YiLCJhLm9pa29ub21vdUBrYWl6ZW5nYW1pbmcuY29tIl0,WyI2ODAyMmNjMjllNWQwZDMwNWIzYWI1YzUiLCJhZ2lzLnBvZkBnbWFpbC5jb20iXQ,WyI2ODAyMmNjMjllNWQwZDMwNWIzYWI1YzUiLCJhZ2lzQG9pa29ub21vdS5lbmdpbmVlciJd';
+  
+  const claudeParams = {
+    endDate: '2025-07-06',
+    startDate: '2025-07-05',
+    calendarIds: base64CalendarIds
+  };
+  
+  try {
+    // This should work now that we handle the base64 calendar IDs as-is
+    const events = await client.getEvents(claudeParams);
+    
+    if (!Array.isArray(events)) {
+      throw new Error('Expected events array for base64 calendar IDs');
+    }
+    
+    // Should filter out "Busy (via Morgen)" and "Untitled Event" events
+    const busyEvents = events.filter(event => event.title === 'Busy (via Morgen)');
+    if (busyEvents.length > 0) {
+      throw new Error('Should filter out "Busy (via Morgen)" events');
+    }
+    
+    const untitledEvents = events.filter(event => event.title === 'Untitled Event');
+    if (untitledEvents.length > 0) {
+      throw new Error('Should filter out "Untitled Event" events');
+    }
+    
+    // Test that we get the correct non-filtered events
+    if (events.length !== 2) {
+      throw new Error(`Expected 2 filtered events, got ${events.length}`);
+    }
+    
+  } catch (error) {
+    throw new Error(`Base64 calendar IDs test failed: ${error.message}`);
+  }
+}
+
+async function testToolSchemaUpdates() {
+  // Test that tool schemas reflect our changes - account_id should be optional
+  const getEventsSchema = toolSchemas.find(t => t.name === 'get_events');
+  const createEventSchema = toolSchemas.find(t => t.name === 'create_event');
+  
+  if (!getEventsSchema) {
+    throw new Error('get_events schema not found');
+  }
+  
+  if (!createEventSchema) {
+    throw new Error('create_event schema not found');
+  }
+  
+  // get_events should only require calendar_ids now
+  const getEventsRequired = getEventsSchema.inputSchema.required;
+  if (!getEventsRequired.includes('calendar_ids')) {
+    throw new Error('get_events should require calendar_ids');
+  }
+  
+  if (getEventsRequired.includes('account_id')) {
+    throw new Error('get_events should not require account_id');
+  }
+  
+  if (getEventsRequired.includes('start_date') || getEventsRequired.includes('end_date')) {
+    throw new Error('get_events should not require start_date or end_date (can default to today)');
+  }
+  
+  // create_event should not require account_id anymore
+  const createEventRequired = createEventSchema.inputSchema.required;
+  if (createEventRequired.includes('account_id')) {
+    throw new Error('create_event should not require account_id (can be looked up from calendar_id)');
+  }
+  
+  if (!createEventRequired.includes('calendar_id')) {
+    throw new Error('create_event should require calendar_id');
+  }
+  
+  if (!createEventRequired.includes('title')) {
+    throw new Error('create_event should require title');
+  }
+  
+  if (!createEventRequired.includes('start_time')) {
+    throw new Error('create_event should require start_time');
+  }
+  
+  // Test that account_id is still present as optional parameter
+  const getEventsProperties = getEventsSchema.inputSchema.properties;
+  const createEventProperties = createEventSchema.inputSchema.properties;
+  
+  if (!getEventsProperties.account_id) {
+    throw new Error('get_events should have account_id as optional parameter');
+  }
+  
+  if (!createEventProperties.account_id) {
+    throw new Error('create_event should have account_id as optional parameter');
   }
 }
 
